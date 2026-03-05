@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,6 +79,10 @@ public class LimitedOfflineModePlugin {
                 proxy.getCommandManager().metaBuilder("lomgroup").aliases("limitedofflinemode").build(),
                 new GroupCommand()
         );
+        proxy.getCommandManager().register(
+                proxy.getCommandManager().metaBuilder("lomallow").build(),
+                new AllowUserCommand()
+        );
     }
 
     private void loadAllowedUsers() {
@@ -99,6 +104,30 @@ public class LimitedOfflineModePlugin {
             }
         } catch (IOException e) {
             logger.error("Failed to load allowed users configuration", e);
+        }
+    }
+
+    private boolean appendAllowedUser(String username) {
+        String normalized = normalizeUsername(username);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        Path configPath = dataDirectory.resolve("allowed-users.txt");
+
+        try {
+            Files.createDirectories(dataDirectory);
+            if (!Files.exists(configPath)) {
+                Files.write(configPath, List.of("# Add usernames that should be allowed to join in offline mode"), StandardCharsets.UTF_8);
+            }
+
+            String linePrefix = Files.size(configPath) > 0 ? System.lineSeparator() : "";
+            Files.writeString(configPath, linePrefix + normalized, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            loadAllowedUsers();
+            return true;
+        } catch (IOException e) {
+            logger.error("Failed to append allowed user '{}'", normalized, e);
+            return false;
         }
     }
 
@@ -293,6 +322,50 @@ public class LimitedOfflineModePlugin {
             sendMessage(source, "/lomgroup group disable <group>");
             sendMessage(source, "/lomgroup group toggle <group>");
             sendMessage(source, "/lomgroup group list");
+        }
+
+        private void sendMessage(CommandSource source, String message) {
+            source.sendMessage(Component.text(message));
+        }
+    }
+
+    private class AllowUserCommand implements SimpleCommand {
+        @Override
+        public void execute(Invocation invocation) {
+            CommandSource source = invocation.source();
+            String[] args = invocation.arguments();
+
+            if (!source.hasPermission("limitedofflinemode.admin")) {
+                sendMessage(source, "No permission.");
+                return;
+            }
+
+            if (args.length != 1) {
+                sendHelp(source);
+                return;
+            }
+
+            String username = normalizeUsername(args[0]);
+            if (username.isEmpty()) {
+                sendMessage(source, "Invalid username.");
+                return;
+            }
+
+            if (allowedUsers.contains(username)) {
+                sendMessage(source, "User '" + username + "' is already allowed.");
+                return;
+            }
+
+            if (!appendAllowedUser(username)) {
+                sendMessage(source, "Failed to add user '" + username + "'. Check proxy logs.");
+                return;
+            }
+
+            sendMessage(source, "Added '" + username + "' to allowed-users.txt and reloaded allowed usernames.");
+        }
+
+        private void sendHelp(CommandSource source) {
+            sendMessage(source, "Usage: /lomallow <username>");
         }
 
         private void sendMessage(CommandSource source, String message) {

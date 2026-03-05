@@ -58,7 +58,7 @@ This plugin is provided **“as is”**, without warranty. The developers are no
 
 4. Edit `allowed-users.txt` in the plugin's directory
 
-5. Restart the server
+5. Restart the server (or use /lomallow <username> for live updates)
 
 ## Configuration
 
@@ -100,6 +100,14 @@ testers|false|TestUser
 ```
 
 Permission: `limitedofflinemode.admin`
+
+### Live Allow Command (Velocity)
+
+```
+/lomallow <username>
+```
+
+Adds the username to `allowed-users.txt` and immediately reloads allowed usernames without restarting the proxy.
 
 ## Metrics
 
